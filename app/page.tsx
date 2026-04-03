@@ -1,9 +1,41 @@
 import { supabase } from '../utils/supabase';
+import { revalidatePath } from 'next/cache';
 
 export const revalidate = 0; 
 
 export default async function Home() {
-  // 1. Fetch BOTH Organizations and People from Supabase
+  
+  // ==========================================
+  // THE NEW "ADD CONTACT" SERVER ACTION
+  // This securely catches your form data and sends it to Supabase
+  // ==========================================
+  async function addContact(formData: FormData) {
+    'use server'; // This tells Next.js to run this securely on the backend
+    
+    // 1. Grab the typed data out of the form
+    const first_name = formData.get('first_name') as string;
+    const last_name = formData.get('last_name') as string;
+    const email = formData.get('email') as string;
+    const location = formData.get('location') as string;
+    const tagsInput = formData.get('tags') as string;
+    
+    // 2. Turn the comma-separated tags into a real array for the database
+    const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()) : [];
+
+    // 3. Insert it into the 'people' table in Supabase
+    const { error } = await supabase.from('people').insert([
+      { first_name, last_name, email, location, tags }
+    ]);
+
+    if (error) console.error("Error adding contact:", error);
+
+    // 4. Instantly refresh the page to show the new person!
+    revalidatePath('/');
+  }
+
+  // ==========================================
+  // FETCHING YOUR EXISTING DATA (Unchanged)
+  // ==========================================
   const { data: organizations, error: orgError } = await supabase
     .from('organizations')
     .select('*')
@@ -18,6 +50,9 @@ export default async function Home() {
     return <div className="p-8 text-red-500">Error fetching database data!</div>;
   }
 
+  // ==========================================
+  // YOUR DASHBOARD UI (Unchanged, just added the form)
+  // ==========================================
   return (
     <div className="min-h-screen bg-gray-50 p-8 font-sans text-gray-900">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -35,7 +70,54 @@ export default async function Home() {
           </div>
         </header>
 
-        {/* SECTION 1: NETWORK / LPS (The new stuff!) */}
+        {/* ========================================== */}
+        {/* THE NEW ADD CONTACT FORM                   */}
+        {/* ========================================== */}
+        <details className="group">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500">
+            + Add New Contact
+          </summary>
+          
+          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-medium">New Contact Details</h3>
+            
+            <form action={addContact} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">First Name</label>
+                  <input type="text" name="first_name" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Marc" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Last Name</label>
+                  <input type="text" name="last_name" required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Andreessen" />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
+                  <input type="email" name="email" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="marc@a16z.com" />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Location</label>
+                  <input type="text" name="location" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. San Francisco" />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Tags (comma separated)</label>
+                <input type="text" name="tags" className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" placeholder="e.g. Tier-1, MUBI-Passed, Founder" />
+              </div>
+
+              <button type="submit" className="mt-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+                Save to Database
+              </button>
+            </form>
+          </div>
+        </details>
+
+
+        {/* SECTION 1: NETWORK / LPS */}
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-200 bg-gray-100 p-4">
             <h2 className="text-lg font-semibold text-gray-800">Network Directory (LPs & Contacts)</h2>
@@ -86,7 +168,7 @@ export default async function Home() {
           </table>
         </div>
 
-        {/* SECTION 2: ORGANIZATIONS / STARTUPS (Your original stuff!) */}
+        {/* SECTION 2: ORGANIZATIONS / STARTUPS */}
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
           <div className="border-b border-gray-200 bg-gray-100 p-4">
             <h2 className="text-lg font-semibold text-gray-800">Portfolio & Pipeline (Startups)</h2>
